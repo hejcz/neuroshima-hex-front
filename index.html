@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neuroshima Hex</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+
+<body>
+    <div id="app">
+
+        <div>
+            <svg width="100%" height="100%" viewBox="0 0 500 425">
+                <g v-for="(row, rid) in board">
+                    <image v-on:click="clickOnBoard(rid, uid)" v-for="(unit, uid) in row"
+                        :href="unitById(unit.id, unit.active)" width="100" height="100" :transform="
+                        `translate(${uid * 86.5 + Math.abs(2 - rid) * 86.5 / 2}, ${rid * 75}), 
+                        rotate(${(unit.rotation - 1) * 60 + 30}, 50, 50)`
+                        "></image>
+                </g>
+            </svg>
+
+        </div>
+
+
+        <div>
+            <svg v-if="hand.length !== 0" width="100%" height="100%" viewBox="0 0 500 150">
+                <image v-on:click="clickOnHand(uid)" v-for="(unit, uid) in hand" :href="unitById(unit)" width="100"
+                    :style="`filter: saturate(${uid === selectedHex || selectedHex === null ? 1 : 0.2})`" height="100"
+                    :transform="`translate(${uid * 120 + 50}, 0)`"></image>
+            </svg>
+        </div>
+
+        <div>
+            <button v-if="hand.length === 0 && isMyTurn && !mustConfirmAction()" style="width: 200px; height: 40px"
+                type="button" v-on:click="finishTurn()">Finish turn</button>
+            <p v-if="hand.length === 0 && !isMyTurn">
+                Waiting for other players... </p>
+            <button v-if="mustConfirmAction()" style="width: 200px; height: 40px" type="button"
+                v-on:click="confirmAction()">
+                Confirm action
+            </button>
+        </div>
+    </div>
+    <script>
+        /**
+         * Expected data format:
+         * {
+         *   "board": [null, [hex_idx, hex_rotation], null, ...],
+         *   "your_turn": bool,
+         *   "discard_hex": bool,
+         *   "your_hand": [hex1_idx, hex2_idx, ...]
+         * }
+         */
+        function handleUpdateFromServer(data) {
+
+        }
+
+        const units = {
+            "empty": {
+                image: "./empty.svg",
+            },
+            "empty-active": {
+                image: "./empty_active.svg",
+            },
+            "b-hq": {
+                image: "./borgo_hq.svg"
+            },
+            "o-runner": {
+                image: "./outpost_runner.svg"
+            },
+            "o-ckm": {
+                image: "./outpost_ckm.svg"
+            },
+            "o-annihilator": {
+                image: "./outpost_annihilator.svg"
+            }
+        }
+        const no_hex = () => ({ "id": null, "rotation": 0, "active": false });
+        const app = new Vue({
+            el: '#app',
+            data: {
+                board: [],
+                hand: [],
+                isMyTurn: true,
+                // did player discarded a hex this turn
+                hexDiscarded: false,
+                // selected hex from hand to put on board
+                selectedHex: null,
+                // hex just placed on the board
+                // row and column of just placed hex - click on this hex rotates it
+                placedHex: null,
+                placedAtRow: null,
+                placedAtColumn: null,
+                // moving hex
+                movingHex: null
+            },
+            methods: {
+                unitById: function (id, active) {
+                    if (id == null) {
+                        id = "empty";
+                    }
+                    if (true === active) {
+                        id = id + "-active";
+                    }
+                    return units[id].image;
+                },
+                clickOnHand: function (uid) {
+                    if (!this.isMyTurn || this.mustConfirmAction() || this.movingHex !== null) {
+                        return;
+                    }
+                    if (!this.hexDiscarded) {
+                        // discard one apply corner cases
+                        this.private_removeFromHand(uid);
+                        this.hexDiscarded = true;
+                        return;
+                    }
+                    // select to place on board or play
+                    this.selectedHex = uid;
+                },
+                clickOnBoard: function (rid, uid) {
+                    if (!this.isMyTurn) {
+                        return;
+                    }
+                    // place hex action
+                    if (this.selectedHex !== null) {
+                        if (this.placedHex === null && this.private_isNoHex(rid, uid)) {
+                            const hex = { id: this.hand[this.selectedHex], rotation: 1, active: false };
+                            Vue.set(this.board[rid], uid, hex);
+                            this.placedAtRow = rid;
+                            this.placedAtColumn = uid;
+                            this.placedHex = hex;
+                            this.private_removeFromHand(this.selectedHex);
+                            return;
+                        }
+                        if (this.placedHex === this.board[rid][uid]) {
+                            const hex = this.board[rid][uid];
+                            hex.rotation = (hex.rotation + 1) % 6;
+                            return;
+                        }
+                    }
+                    // move action
+                    if (this.movingHex === null) {
+                        if (!this.private_isNoHex(rid, uid)) {
+                            this.movingHex = [rid, uid];
+                            this.board.forEach(row => row.forEach(unit => unit.active = false));
+                            const adj = this.private_findFreeAdjacent(rid, uid);
+                            adj.forEach(([r, u]) => this.board[r][u].active = true);
+                        }
+                    }
+                },
+                finishTurn: function () {
+                    if (!this.isMyTurn || this.hand.length !== 0) {
+                        return;
+                    }
+                    this.isMyTurn = false;
+                },
+                private_removeFromHand: function (uid) {
+                    this.hand.splice(uid, 1);
+                },
+                mustConfirmAction: function () {
+                    return this.placedHex !== null;
+                },
+                confirmAction: function () {
+                    this.placedAtRow = null;
+                    this.placedAtColumn = null;
+                    this.placedHex = null;
+                    this.selectedHex = null;
+                    this.movingHex = null;
+                },
+                handleServerEvent: function (event) {
+                    switch (event.action) {
+                        case "update-board":
+                            this.board = [3, 4, 5, 4, 3]
+                                .map(count => event.board.splice(0, count))
+                                .map(hexes => hexes.map(hex => hex === null ? no_hex() : hex))
+                            break;
+                        case "update-hand":
+                            this.hand = event.hand;
+                            break;
+                        case "update-battle":
+                            break;
+                    }
+                },
+                private_isNoHex: function (rid, uid) {
+                    return this.board[rid][uid].id === null;
+                },
+                private_findFreeAdjacent: function (rid, uid) {
+                    const res = {
+                        0: {
+                            0: { prev: [], same: [1], next: [0, 1] },
+                            1: { prev: [], same: [0, 2], next: [1, 2] },
+                            2: { prev: [], same: [1], next: [2, 3] },
+                        },
+                        1: {
+                            0: { prev: [0], same: [1], next: [0, 1] },
+                            1: { prev: [0, 1], same: [0, 2], next: [1, 2] },
+                            2: { prev: [1, 2], same: [1, 3], next: [2, 3] },
+                            3: { prev: [2], same: [2], next: [3, 4] },
+                        },
+                        2: {
+                            0: { prev: [0], same: [1], next: [0] },
+                            1: { prev: [0, 1], same: [0, 2], next: [0, 1] },
+                            2: { prev: [1, 2], same: [1, 3], next: [1, 2] },
+                            3: { prev: [2, 3], same: [2, 4], next: [2, 3] },
+                            4: { prev: [3], same: [3], next: [3] },
+                        },
+                        3: {
+                            0: { prev: [0, 1], same: [1], next: [0] },
+                            1: { prev: [1, 2], same: [0, 2], next: [0, 1] },
+                            2: { prev: [2, 3], same: [1, 3], next: [1, 2] },
+                            3: { prev: [3, 4], same: [2], next: [2] },
+                        },
+                        4: {
+                            0: { prev: [0, 1], same: [1], next: [] },
+                            1: { prev: [1, 2], same: [0, 2], next: [] },
+                            2: { prev: [2, 3], same: [1], next: [] }
+                        },
+                    }
+
+                    const positions = res[rid][uid];
+                    return positions.prev.map(u => [rid - 1, u])
+                        .concat(positions.same.map(u => [rid, u]))
+                        .concat(positions.next.map(u => [rid + 1, u]))
+                        .filter(([r, u]) => this.private_isNoHex(r, u));
+                }
+            }
+        });
+        // create empty board
+        app.handleServerEvent({ action: "update-board", board: Array(19).fill(null) });
+    </script>
+</body>
+
+</html>

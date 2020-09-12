@@ -1,0 +1,70 @@
+[
+    [
+        {
+            "direction": "s2c",
+            "action": "discard",
+            "player": "tom"
+        },
+        {
+            "direction": "c2s",
+            "action": "discard",
+            "hex-id": 1716
+        }
+    ],
+    [
+        {
+            "direction": "c2s",
+            "action": "move",
+            "from-index": 10,
+            "to-index": 15,
+            "rotation": 3
+        }
+    ],
+    [
+        {
+            "direction": "c2s - instant hex",
+            "action": "play",
+            "hex-id": 2222
+        }
+    ],
+    [
+        {
+            "direction": "c2s - board hex",
+            "action": "play",
+            "hex-id": 2222,
+            "to-index": 15,
+            "rotation": 2
+        }
+    ],
+    [
+        {
+            "direction": "c2s - board hex",
+            "action": "play",
+            "hex-id": "battle"
+        },
+        {
+            "direction": "s2c - broadcast",
+            "action": "battle",
+            "log": [
+                "initiative3 moloch shoots to unit on 3",
+                "initiative3 moloch shoots to unit on 4. Medic on 5 dies instead",
+                "initiative3 outpost shoots to unit on 2. It receives 1 wound."
+            ]
+        }
+    ],
+    [
+        {
+            "direction": "s2c",
+            "action": "update-board",
+            "board": [null, null, null, null, null, null, null, null, null, null,
+                null, {"id": "b-hq", "rotation": 3}, null, null, null, null, null, null, null]
+        }
+    ],
+    [
+        {
+            "direction": "s2c",
+            "action": "update-hand",
+            "board": ["o-runner", "o-annihilator", "o-ckm"]
+        }
+    ]
+]
