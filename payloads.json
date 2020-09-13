@@ -64,7 +64,7 @@
         {
             "direction": "s2c",
             "action": "update-hand",
-            "board": ["o-runner", "o-annihilator", "o-ckm"]
+            "hand": ["o-runner", "o-annihilator", "o-ckm"]
         }
     ]
 ]
